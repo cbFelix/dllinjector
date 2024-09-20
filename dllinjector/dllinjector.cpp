@@ -179,7 +179,7 @@ void ShowMenu() {
 }
 
 void initMessage() {
-    for (char _ : "DLL Injector by keww:L\n--------------------------------\nThis project is for educational purposes only. \nThe creator does not take any responsibility for any actions taken with this software. \nUse at your own risk.\n\nThe project is protected by MIT LINECSE.") {
+    for (char _ : "DLL Injector by keww:L\n--------------------------------\nThis project is for educational purposes only. \nThe creator does not take any responsibility for any actions taken with this software. \nUse at your own risk.\n\nThe project is protected by MIT LICENSE.") {
         std::cout << _;
         Sleep(10);
     }
