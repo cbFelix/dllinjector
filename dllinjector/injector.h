@@ -4,56 +4,60 @@
 
 #include <iostream>
 #include <Windows.h>
-#include <string>
-#include <fstream>
 #include <TlHelp32.h>
+#include <fstream>
+#include <vector>
+#include <winternl.h>
+#include <iterator>
+#include <algorithm>
 
 using namespace std;
 
-typedef NTSTATUS(NTAPI* NtCreateThreadExFunc)(
-	OUT PHANDLE hThread,
-	IN ACCESS_MASK DesiredAccess,
-	IN PVOID ObjectAttributes,
-	IN HANDLE ProcessHandle,
-	IN PVOID lpStartAddress,
-	IN PVOID lpParameter,
-	IN ULONG Flags,
-	IN SIZE_T StackZeroBits,
-	IN SIZE_T SizeOfStackCommit,
-	IN SIZE_T SizeOfStackReserve,
-	OUT PVOID lpBytesBuffer
+namespace InjectorAPI {
+	typedef NTSTATUS(NTAPI* NtCreateThreadExFunc)(
+		OUT PHANDLE hThread,
+		IN ACCESS_MASK DesiredAccess,
+		IN PVOID ObjectAttributes,
+		IN HANDLE ProcessHandle,
+		IN PVOID lpStartAddress,
+		IN PVOID lpParameter,
+		IN ULONG Flags,
+		IN SIZE_T StackZeroBits,
+		IN SIZE_T SizeOfStackCommit,
+		IN SIZE_T SizeOfStackReserve,
+		OUT PVOID lpBytesBuffer
 	);
 
-enum class InjectMethod {
-	CreateRemoteThread,
-	NtCreateThreadEx,
-	ManualMap
-};
+	class Injector {
+	public:
+		Injector(DWORD processId);
+		~Injector();
 
-class Injector {
-public:
-	Injector();
-	~Injector();
+		void Inject(const char* dllPath);
+		void Eject(HMODULE hModule);
 
-	virtual bool inject(DWORD processId, const char* dllPath);
-	// Uses the CreateRemoteThread method from the windows.h standard library.
+	private:
+		HANDLE hProcess;
+		PROCESSENTRY32 processEntry;
+	};
 
-	virtual bool injectNt(DWORD processId, const char* dllPath);
-	// Uses the undocumented NtCreateThreadEx method.
+	DWORD FindProcessID(wstring processName);
+	PROCESSENTRY32 FindProcess(DWORD processId);
 
-	virtual bool injectManualMap(DWORD processId, const char* dllPath);
-	// Not implemented.
+	class DllValidator {
+	public:
+		DllValidator(const char* path);
+		~DllValidator();
 
-	bool checkDllFile(const char* dllPath);
-	// Checks dll file for validity. Simplified version.
+		string rawData();
+		bool isValidDLL();
+		IMAGE_DOS_HEADER GetDOSHeader(HANDLE hFile);
 
-private:
-	bool writeDllPath(const char* dllPath) {
+	private:
+		string dllPath;
+
+	};
+}
 
 
-		return false;
-	}
-
-};
-
-#endif //INJECTOR_H
+#endif // INJECTOR_H

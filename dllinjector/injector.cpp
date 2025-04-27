@@ -1,129 +1,121 @@
 #include "injector.h"
 
-Injector::Injector() {
-
-}
-Injector::~Injector() {
-
-}
-
-bool Injector::checkDllFile(const char* dllPath) {
-	ifstream iFile(dllPath);
-	if (!iFile) {
-		return false;
+InjectorAPI::Injector::Injector(DWORD processId) {
+	hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, processId);
+	if (!hProcess) {
+		throw runtime_error("OpenProcess failed. Error: " + GetLastError());
 	}
 
-	return true;
+	processEntry = FindProcess(processId);
+}
+InjectorAPI::Injector::~Injector() {
+	CloseHandle(hProcess);
 }
 
-bool Injector::inject(DWORD processId, const char* dllPath) {
+DWORD InjectorAPI::FindProcessID(wstring processName) {
+	PROCESSENTRY32 pEntry;
+	pEntry.dwSize = sizeof(PROCESSENTRY32);
 
-	HANDLE hTargetProcess = OpenProcess(PROCESS_ALL_ACCESS, false, processId);
-	if (!hTargetProcess) {
-		DWORD error = GetLastError();
-		cerr << "Failed to get process handle. Error: " << error << endl;
-
-		return false;
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (!hSnapshot) {
+		throw runtime_error("CreateToolhelp32Snapshot failed. Error: " + GetLastError());
 	}
 
-	if (!checkDllFile(dllPath)) {
-		cerr << "Failed to open DLL file." << endl;
-
-		return false;
+	if (!Process32First(hSnapshot, &pEntry)) {
+		CloseHandle(hSnapshot);
+		throw runtime_error("Process32First failed. Error: " + GetLastError());
 	}
 
-	size_t nDllPath = strlen(dllPath) + 1;
-	LPVOID allocMem = VirtualAllocEx(hTargetProcess, NULL, nDllPath, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	if (!allocMem) {
-		DWORD error = GetLastError();
-		cerr << "Failed to allocate memory in process. Error: " << error << endl;
-
-		CloseHandle(hTargetProcess);
-		return false;
-	}
-
-	if (!WriteProcessMemory(hTargetProcess, allocMem, dllPath, nDllPath, NULL)) {
-		DWORD error = GetLastError();
-		cerr << "Failed to write path to dll in process. Error: " << error << endl;
-
-		VirtualFreeEx(hTargetProcess, allocMem, 0, MEM_RELEASE);
-		CloseHandle(hTargetProcess);
-		return false;
-	}
-
-	LPVOID lpLoadLibraryAddr = (LPVOID)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
-	HANDLE hDLLThread = CreateRemoteThread(hTargetProcess, NULL, 0, (LPTHREAD_START_ROUTINE)lpLoadLibraryAddr, allocMem, NULL, NULL);
-	if (!hDLLThread) {
-		DWORD error = GetLastError();
-		cerr << "Failed to create remote thread in process. Error: " << error << endl;
-
-		VirtualFreeEx(hTargetProcess, allocMem, 0, MEM_RELEASE);
-		CloseHandle(hDLLThread);
-		CloseHandle(hTargetProcess);
-		return false;
-	}
-
-	WaitForSingleObject(hDLLThread, INFINITE);
-
-	VirtualFreeEx(hTargetProcess, allocMem, 0, MEM_RELEASE);
-
-	return true;
+	do {
+		if (processName.compare(pEntry.szExeFile) == 0) {
+			return pEntry.th32ProcessID;
+		}
+	} while (Process32Next(hSnapshot, &pEntry));
 }
 
-bool Injector::injectNt(DWORD processId, const char* dllPath) {
-	HANDLE hTargetProcess = OpenProcess(PROCESS_ALL_ACCESS, false, processId);
-	if (!hTargetProcess) {
-		DWORD error = GetLastError();
-		cerr << "Failed to get process handle. Error: " << error << endl;
+PROCESSENTRY32 InjectorAPI::FindProcess(DWORD processId) {
+	PROCESSENTRY32 pEntry;
+	pEntry.dwSize = sizeof(PROCESSENTRY32);
 
-		return false;
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, processId);
+	if (!hSnapshot) {
+		throw runtime_error("CreateToolhelp32Snapshot failed. Error: " + GetLastError());
 	}
 
-	if (!checkDllFile(dllPath)) {
-		cerr << "Failed to open DLL file." << endl;
-
-		return false;
+	if (!Process32First(hSnapshot, &pEntry)) {
+		CloseHandle(hSnapshot);
+		throw runtime_error("Process32First failed. Error: " + GetLastError());
 	}
 
-	size_t nDllPath = strlen(dllPath) + 1;
-	LPVOID allocMem = VirtualAllocEx(hTargetProcess, NULL, nDllPath, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	if (!allocMem) {
-		DWORD error = GetLastError();
-		cerr << "Failed to allocate memory in process. Error: " << error << endl;
-
-		CloseHandle(hTargetProcess);
-		return false;
-	}
-
-	if (!WriteProcessMemory(hTargetProcess, allocMem, dllPath, nDllPath, NULL)) {
-		DWORD error = GetLastError();
-		cerr << "Failed to write path to dll in process. Error: " << error << endl;
-
-		VirtualFreeEx(hTargetProcess, allocMem, 0, MEM_RELEASE);
-		CloseHandle(hTargetProcess);
-		return false;
-	}
-
-	LPVOID lpLoadLibraryAddr = (LPVOID)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
-	NtCreateThreadExFunc NtCreateThreadEx = (NtCreateThreadExFunc)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtCreateThreadEx");
-	HANDLE hDLLThread = NULL;
-	NTSTATUS status = NtCreateThreadEx(&hDLLThread, THREAD_ALL_ACCESS, NULL, hTargetProcess, (LPTHREAD_START_ROUTINE)lpLoadLibraryAddr, allocMem, 0x4, 0, 0, 0, 0);
-	if (!hDLLThread) {
-		DWORD error = GetLastError();
-		cerr << "Failed to create remote hidden thread in process. Error: " << error << endl;
-
-		VirtualFreeEx(hTargetProcess, allocMem, 0, MEM_RELEASE);
-		CloseHandle(hTargetProcess);
-		return false;
-	}
-
-	WaitForSingleObject(hDLLThread, INFINITE);
-
-	VirtualFreeEx(hTargetProcess, allocMem, 0, MEM_RELEASE);
-
-	return true;
+	do {
+		if (pEntry.th32ProcessID == processId) {
+			return pEntry;
+		}
+	} while (Process32Next(hSnapshot, &pEntry));
 }
 
-bool Injector::injectManualMap(DWORD processId, const char* dllPath) {
-	return true;
+InjectorAPI::DllValidator::DllValidator(const char* path) {
+	ifstream file;
+	file.open(path, ios::binary);
+	
+	if (!file) {
+		throw runtime_error("Ifstream file.open() failed.");
+	}
+
+	dllPath = path;
+}
+
+InjectorAPI::DllValidator::~DllValidator() {
+
+}
+
+string InjectorAPI::DllValidator::rawData() {
+	ifstream file(dllPath, ios::binary | ios::ate);
+
+	file.seekg(0, ios::end);
+	const auto sz = file.tellg();
+
+	if (sz <= 0) {
+		throw std::runtime_error("Failed to get file size");
+	}
+
+	string buffer;
+	buffer.resize(static_cast<size_t>(sz));
+
+	file.seekg(0);
+	file.read((char*)buffer.data(), sz);
+
+	return buffer;
+}
+
+bool InjectorAPI::DllValidator::isValidDLL() {
+	HANDLE hFile = CreateFileA(dllPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+	if (hFile == INVALID_HANDLE_VALUE) {
+		return false;
+	}
+
+	IMAGE_DOS_HEADER dosHeader;
+	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), NULL, nullptr)) {
+		CloseHandle(hFile);
+		return false;
+	}
+
+	if (dosHeader.e_magic != IMAGE_DOS_SIGNATURE) {
+		CloseHandle(hFile);
+		return false;
+	}
+
+
+}
+
+
+IMAGE_DOS_HEADER InjectorAPI::DllValidator::GetDOSHeader(HANDLE hFile) {
+	IMAGE_DOS_HEADER dosHeader;
+	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), NULL, nullptr)) {
+		CloseHandle(hFile);
+		throw runtime_error("Failed to get DOS header.");
+	}
+	
+	return dosHeader;
 }
