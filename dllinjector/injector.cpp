@@ -47,10 +47,6 @@ void InjectorAPI::Injector::Inject(const char* dllPath) {
 		VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
 		throw runtime_error("Failed to create remote thread in target process. Error: " + GetLastError());
 	}
-
-	WaitForSingleObject(hThread, INFINITE);
-
-	VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
 }
 
 void InjectorAPI::Injector::InjectNt(const char* dllPath) {
@@ -89,12 +85,10 @@ void InjectorAPI::Injector::InjectNt(const char* dllPath) {
 		throw runtime_error("Failed to create remote hidden thread in process. Error: " + GetLastError());
 	}
 
-	WaitForSingleObject(hThread, INFINITE);
-
-	VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+	CloseHandle(hThread);
 }
 
-void InjectorAPI::Injector::Eject(HMODULE hModule) {
+void InjectorAPI::Injector::Eject(const char* moduleName) {
 	if (!hProcess) {
 		throw runtime_error("The process is no longer available.");
 	}

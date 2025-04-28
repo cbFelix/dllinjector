@@ -33,7 +33,7 @@ namespace InjectorAPI {
 
 		void Inject(const char* dllPath);
 		void InjectNt(const char* dllPath);
-		void Eject(HMODULE hModule);
+		void Eject(const char* moduleName);
 
 	private:
 		HANDLE hProcess;
