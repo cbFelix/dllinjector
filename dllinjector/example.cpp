@@ -8,7 +8,7 @@ using namespace std;
 
 int main() {
 	try {
-		cout << "DLLInjector v0.2.8" << endl;
+		cout << "DLLInjector v0.2.9" << endl;
 		cout << "Github: https://github.com/cbFelix/dllinjector" << endl;
 		cout << "\nWarning! The current version is in development and has not been tested. Use at your own risk. \nOf course, the probability of this is very small, at least there were no problems during test runs.\n" << endl;
 
@@ -23,7 +23,7 @@ int main() {
 		cout << "Path to dll: ";
 		cin >> buffer;
 
-		inj.InjectNt(buffer.c_str());
+		inj.Inject(buffer.c_str());
 		
 		cout << "Injection succesfull." << endl;
 	}
