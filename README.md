@@ -16,6 +16,7 @@ Written in `C++`.
 - [ ] Functions for signing dll.
 - [ ] Injection via NtCreateThreadEx.
 - [ ] Injection via Manual Mapping.
+- [ ] Graphical user interface.
 
 ## Examples
 You can test some of the features using the built-in examples. 
