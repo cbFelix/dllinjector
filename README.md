@@ -1,5 +1,5 @@
 # DLL Injector
-## Actual version: v0.2.7 (28.04.2025)
+## Actual version: v0.2.8 (28.04.2025)
 
 An application with its own simple API for implementing injectors for DLLs.
 
