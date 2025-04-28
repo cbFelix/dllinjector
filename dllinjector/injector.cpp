@@ -9,7 +9,55 @@ InjectorAPI::Injector::Injector(DWORD processId) {
 	processEntry = FindProcess(processId);
 }
 InjectorAPI::Injector::~Injector() {
-	CloseHandle(hProcess);
+	if (hProcess != INVALID_HANDLE_VALUE) {
+		CloseHandle(hProcess);
+	}
+}
+
+void InjectorAPI::Injector::Inject(const char* dllPath) {
+	if (!hProcess) {
+		throw runtime_error("The process is no longer available.");
+	}
+
+	DllValidator dllValidator(dllPath);
+	if (!dllValidator.isValidDLL()) {
+		throw runtime_error("Invalid DLL.");
+	}
+
+	size_t nDllPath = strlen(dllPath) + 1;
+	LPVOID allocMem = VirtualAllocEx(hProcess, nullptr, nDllPath, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (!allocMem) {
+		throw runtime_error("VirtualAllocEx failed. Error: " + GetLastError());
+	}
+
+	size_t bytesWrite;
+	if (!WriteProcessMemory(hProcess, allocMem, dllPath, nDllPath, &bytesWrite) || bytesWrite != nDllPath) {
+		VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+		throw runtime_error("WriteProcessMemory failed. Error: " + GetLastError());
+	}
+
+	HMODULE krnl32m = GetModuleHandleA("kernel32.dll");
+	if (krnl32m == 0) {
+		VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+		throw runtime_error("Failed to get kernel32.dll module handle. Error: " + GetLastError());
+	}
+	LPVOID lpLoadLibraryAddr = (LPVOID)GetProcAddress(krnl32m, "LoadLibraryA");
+	HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)lpLoadLibraryAddr, allocMem, 0, NULL);
+	if (!hThread) {
+		VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+		throw runtime_error("Failed to create remote thread in target process. Error: " + GetLastError());
+	}
+
+	WaitForSingleObject(hThread, INFINITE);
+
+	VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+}
+void InjectorAPI::Injector::Eject(HMODULE hModule) {
+	if (!hProcess) {
+		throw runtime_error("The process is no longer available.");
+	}
+
+
 }
 
 DWORD InjectorAPI::FindProcessID(wstring processName) {
@@ -57,7 +105,7 @@ PROCESSENTRY32 InjectorAPI::FindProcess(DWORD processId) {
 InjectorAPI::DllValidator::DllValidator(const char* path) {
 	ifstream file;
 	file.open(path, ios::binary);
-	
+
 	if (!file) {
 		throw runtime_error("Ifstream file.open() failed.");
 	}
@@ -97,7 +145,7 @@ bool InjectorAPI::DllValidator::isValidDLL() {
 
 	IMAGE_DOS_HEADER dosHeader;
 	DWORD bytesRead;
-	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), &bytesRead, nullptr) || 
+	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), &bytesRead, nullptr) ||
 		bytesRead != sizeof(dosHeader)) {
 		CloseHandle(hFile);
 		return false;
@@ -110,7 +158,7 @@ bool InjectorAPI::DllValidator::isValidDLL() {
 
 	SetFilePointer(hFile, dosHeader.e_lfanew, nullptr, FILE_BEGIN);
 	IMAGE_NT_HEADERS ntHeaders;
-	if (!ReadFile(hFile, &ntHeaders, sizeof(ntHeaders), &bytesRead, nullptr) || 
+	if (!ReadFile(hFile, &ntHeaders, sizeof(ntHeaders), &bytesRead, nullptr) ||
 		bytesRead != sizeof(ntHeaders)) {
 		CloseHandle(hFile);
 		return false;
@@ -125,7 +173,6 @@ bool InjectorAPI::DllValidator::isValidDLL() {
 	return true;
 }
 
-
 IMAGE_DOS_HEADER InjectorAPI::DllValidator::GetDOSHeader() {
 	HANDLE hFile = CreateFileA(dllPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, nullptr);
 
@@ -135,12 +182,12 @@ IMAGE_DOS_HEADER InjectorAPI::DllValidator::GetDOSHeader() {
 
 	IMAGE_DOS_HEADER dosHeader;
 	DWORD bytesRead;
-	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), &bytesRead, nullptr) || 
+	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), &bytesRead, nullptr) ||
 		bytesRead != sizeof(dosHeader)) {
 		CloseHandle(hFile);
 		throw runtime_error("Failed to get DOS header.");
 	}
-	
+
 	return dosHeader;
 }
 

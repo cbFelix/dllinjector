@@ -10,13 +10,12 @@ int main() {
 	try {
 		DWORD processId = InjectorAPI::FindProcessID(L"notepad.exe");
 		
-		const char* path = "F:/dllTest.dll";
+		const char* path = "your dll";
 
-		InjectorAPI::DllValidator val(path);
+		InjectorAPI::Injector inj(processId);
+		inj.Inject(path);
 
-		if (!val.isValidDLL()) {
-			return -1;
-		}
+
 	}
 	catch (exception &e) {
 		cerr << "Error: " << e.what() << endl;
