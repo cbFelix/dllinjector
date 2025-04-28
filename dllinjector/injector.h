@@ -8,6 +8,8 @@
 #include <fstream>
 #include <vector>
 #include <winternl.h>
+#include <sstream>
+#include <string>
 
 #include "ntHeaders.h"
 

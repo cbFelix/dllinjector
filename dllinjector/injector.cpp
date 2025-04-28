@@ -3,7 +3,7 @@
 InjectorAPI::Injector::Injector(DWORD processId) {
 	hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, processId);
 	if (!hProcess) {
-		throw runtime_error("OpenProcess failed. Error: " + GetLastError());
+		throw runtime_error("OpenProcess failed. Error: " + to_string(GetLastError()));
 	}
 
 	processEntry = FindProcess(processId);
@@ -24,7 +24,9 @@ void InjectorAPI::Injector::Inject(const char* dllPath) {
 		throw runtime_error("Invalid DLL.");
 	}
 
-	size_t nDllPath = strlen(dllPath) + 1;
+	SIZE_T nDllPath = strlen(dllPath) + 1;
+	cout << "Size: " << nDllPath << endl;
+
 	LPVOID allocMem = VirtualAllocEx(hProcess, nullptr, nDllPath, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (!allocMem) {
 		throw runtime_error("VirtualAllocEx failed. Error: " + GetLastError());
@@ -59,20 +61,62 @@ void InjectorAPI::Injector::InjectNt(const char* dllPath) {
 		throw runtime_error("Invalid DLL.");
 	}
 
-	PSIZE_T nDllPath = (PSIZE_T)strlen(dllPath) + 1;
 	HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
 	if (!hNtdll) {
-		throw runtime_error("Failed to get ntDLL handle.");
+		throw runtime_error("Failed to get ntdll handle. Error 0x" + to_string(GetLastError()));
 	}
 
-	pNtAllocateVirtualMemory NtAllocateVirtualMemory = (pNtAllocateVirtualMemory)GetProcAddress(hNtdll, "NtAllocateVirtualMemory");
+	auto NtAllocateVirtualMemory = (pNtAllocateVirtualMemory)GetProcAddress(hNtdll, "NtAllocateVirtualMemory");
 	if (!NtAllocateVirtualMemory) {
 		throw runtime_error("Failed to get address of NtAllocateVirtualMemory.");
 	}
+	auto NtFreeVirtualMemory = (pNtFreeVirtualMemory)GetProcAddress(hNtdll, "NtFreeVirtualMemory");
+	if (!NtAllocateVirtualMemory) {
+		throw runtime_error("Failed to get address of NtFreeVirtualMemory.");
+	}
 
-	NTSTATUS status = NtAllocateVirtualMemory(hProcess, nullptr, 0, nDllPath, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	if (status != 0) {
-		throw runtime_error("NtAllocateVirtualMemory failed. Status: 0x" + status);
+	SIZE_T nDllSize = strlen(dllPath) + 1;
+	SIZE_T RegionSize = nDllSize;
+
+	PVOID allocMem = nullptr;
+	NTSTATUS ntAllocStatus = NtAllocateVirtualMemory(hProcess, &allocMem, 0, &RegionSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (!NT_SUCCESS(ntAllocStatus)) {
+		throw runtime_error("NtAllocateVirtualMemory failed. NTSTATUS: 0x" + to_string(ntAllocStatus));
+	}
+
+	if (nDllSize > RegionSize) {
+		throw std::runtime_error("Not enough memory.");
+	}
+
+	auto NtWriteVirtualMemory = (pNtWriteVirtualMemory)GetProcAddress(hNtdll, "NtWriteVirtualMemory");
+	if (!NtWriteVirtualMemory) {
+		NtFreeVirtualMemory(hProcess, &allocMem, 0, MEM_RELEASE);
+		throw runtime_error("Failed to get address of NtWriteVirtualMemory.");
+	}
+
+	ULONG bytesWritten = 0;
+	NTSTATUS ntWriteStatus = NtWriteVirtualMemory(hProcess, allocMem, (PVOID)dllPath, (ULONG)(nDllSize), &bytesWritten);
+	if (!NT_SUCCESS(ntWriteStatus)) {
+		NtFreeVirtualMemory(hProcess, &allocMem, 0, MEM_RELEASE);
+		throw runtime_error("NtWriteVirtualMemory failed. NTSTATUS: 0x" + to_string(ntAllocStatus));
+	}
+
+	LPVOID lpLoadLibraryAddr = (LPVOID)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
+	pNtCreateThreadEx NtCreateThreadEx = (pNtCreateThreadEx)GetProcAddress(hNtdll, "NtCreateThreadEx");
+	if (!NtCreateThreadEx) {
+		NtFreeVirtualMemory(hProcess, &allocMem, 0, MEM_RELEASE);
+		throw runtime_error("Failed to get address of NtCreateThreadEx.");
+	}
+
+	HANDLE hThread;
+	NTSTATUS ntCreateThreadStatus = NtCreateThreadEx(&hThread, THREAD_ALL_ACCESS, NULL, hProcess, (LPTHREAD_START_ROUTINE)lpLoadLibraryAddr, allocMem, 0x4, 0, 0, 0, 0);
+	if (!NT_SUCCESS(ntCreateThreadStatus)) {
+		NtFreeVirtualMemory(hProcess, &allocMem, 0, MEM_RELEASE);
+		throw runtime_error("NtCreateThreadEx failed. NTSTATUS: 0x" + to_string(ntAllocStatus));
+	}
+	if (!hThread) {
+		NtFreeVirtualMemory(hProcess, &allocMem, 0, MEM_RELEASE);
+		throw runtime_error("Failed to create remote thread in process. Error 0x" + to_string(GetLastError()));
 	}
 }
 
