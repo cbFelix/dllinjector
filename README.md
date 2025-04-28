@@ -14,7 +14,7 @@ Written in `C++`.
 - [ ] Create a modular injector for system extensibility and flexibility.
 - [ ] Digital signature verification.
 - [ ] Functions for signing dll.
-- [ ] Injection via NtCreateThreadEx.
+- [x] Injection via NtCreateThreadEx (Task closed 04/28/2025).
 - [ ] Injection via Manual Mapping.
 - [ ] Graphical user interface.
 

@@ -8,34 +8,31 @@
 #include <fstream>
 #include <vector>
 #include <winternl.h>
-#include <iterator>
-#include <algorithm>
-#include <wincrypt.h>
-#include <SoftPub.h>
 
 using namespace std;
 
-namespace InjectorAPI {
-	typedef NTSTATUS(NTAPI* NtCreateThreadExFunc)(
-		OUT PHANDLE hThread,
-		IN ACCESS_MASK DesiredAccess,
-		IN PVOID ObjectAttributes,
-		IN HANDLE ProcessHandle,
-		IN PVOID lpStartAddress,
-		IN PVOID lpParameter,
-		IN ULONG Flags,
-		IN SIZE_T StackZeroBits,
-		IN SIZE_T SizeOfStackCommit,
-		IN SIZE_T SizeOfStackReserve,
-		OUT PVOID lpBytesBuffer
-	);
+typedef NTSTATUS(NTAPI* NtCreateThreadExFunc)(
+	OUT PHANDLE hThread,
+	IN ACCESS_MASK DesiredAccess,
+	IN PVOID ObjectAttributes,
+	IN HANDLE ProcessHandle,
+	IN PVOID lpStartAddress,
+	IN PVOID lpParameter,
+	IN ULONG Flags,
+	IN SIZE_T StackZeroBits,
+	IN SIZE_T SizeOfStackCommit,
+	IN SIZE_T SizeOfStackReserve,
+	OUT PVOID lpBytesBuffer
+);
 
+namespace InjectorAPI {
 	class Injector {
 	public:
 		Injector(DWORD processId);
 		~Injector();
 
 		void Inject(const char* dllPath);
+		void InjectNt(const char* dllPath);
 		void Eject(HMODULE hModule);
 
 	private:

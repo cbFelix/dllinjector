@@ -23,7 +23,7 @@ int main() {
 		cout << "Path to dll: ";
 		cin >> buffer;
 
-		inj.Inject(buffer.c_str());
+		inj.InjectNt(buffer.c_str());
 		
 		cout << "Injection succesfull." << endl;
 	}

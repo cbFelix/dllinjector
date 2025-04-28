@@ -52,6 +52,48 @@ void InjectorAPI::Injector::Inject(const char* dllPath) {
 
 	VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
 }
+
+void InjectorAPI::Injector::InjectNt(const char* dllPath) {
+	if (!hProcess) {
+		throw runtime_error("The process is no longer available.");
+	}
+
+	DllValidator dllValidator(dllPath);
+	if (!dllValidator.isValidDLL()) {
+		throw runtime_error("Invalid DLL.");
+	}
+
+	size_t nDllPath = strlen(dllPath) + 1;
+	LPVOID allocMem = VirtualAllocEx(hProcess, nullptr, nDllPath, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (!allocMem) {
+		throw runtime_error("VirtualAllocEx failed. Error: " + GetLastError());
+	}
+
+	size_t bytesWrite;
+	if (!WriteProcessMemory(hProcess, allocMem, dllPath, nDllPath, &bytesWrite) || bytesWrite != nDllPath) {
+		VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+		throw runtime_error("WriteProcessMemory failed. Error: " + GetLastError());
+	}
+
+	HMODULE krnl32m = GetModuleHandleA("kernel32.dll");
+	if (krnl32m == 0) {
+		VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+		throw runtime_error("Failed to get kernel32.dll module handle. Error: " + GetLastError());
+	}
+	LPVOID lpLoadLibraryAddr = (LPVOID)GetProcAddress(krnl32m, "LoadLibraryA");
+	NtCreateThreadExFunc NtCreateThreadEx = (NtCreateThreadExFunc)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtCreateThreadEx");
+	HANDLE hThread = NULL;
+	NTSTATUS status = NtCreateThreadEx(&hThread, THREAD_ALL_ACCESS, NULL, hProcess, (LPTHREAD_START_ROUTINE)lpLoadLibraryAddr, allocMem, 0x4, 0, 0, 0, 0);
+	if (!hThread) {
+		VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+		throw runtime_error("Failed to create remote hidden thread in process. Error: " + GetLastError());
+	}
+
+	WaitForSingleObject(hThread, INFINITE);
+
+	VirtualFreeEx(hProcess, allocMem, 0, MEM_RELEASE);
+}
+
 void InjectorAPI::Injector::Eject(HMODULE hModule) {
 	if (!hProcess) {
 		throw runtime_error("The process is no longer available.");
