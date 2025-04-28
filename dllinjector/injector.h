@@ -50,8 +50,11 @@ namespace InjectorAPI {
 		~DllValidator();
 
 		string rawData();
+
 		bool isValidDLL();
-		IMAGE_DOS_HEADER GetDOSHeader(HANDLE hFile);
+		bool isValidDOSHeader();
+
+		IMAGE_DOS_HEADER GetDOSHeader();
 
 	private:
 		string dllPath;

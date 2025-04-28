@@ -89,14 +89,16 @@ string InjectorAPI::DllValidator::rawData() {
 }
 
 bool InjectorAPI::DllValidator::isValidDLL() {
-	HANDLE hFile = CreateFileA(dllPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	HANDLE hFile = CreateFileA(dllPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, nullptr);
 
 	if (hFile == INVALID_HANDLE_VALUE) {
 		return false;
 	}
 
 	IMAGE_DOS_HEADER dosHeader;
-	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), NULL, nullptr)) {
+	DWORD bytesRead;
+	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), &bytesRead, nullptr) || 
+		bytesRead != sizeof(dosHeader)) {
 		CloseHandle(hFile);
 		return false;
 	}
@@ -106,16 +108,56 @@ bool InjectorAPI::DllValidator::isValidDLL() {
 		return false;
 	}
 
+	SetFilePointer(hFile, dosHeader.e_lfanew, nullptr, FILE_BEGIN);
+	IMAGE_NT_HEADERS ntHeaders;
+	if (!ReadFile(hFile, &ntHeaders, sizeof(ntHeaders), &bytesRead, nullptr) || 
+		bytesRead != sizeof(ntHeaders)) {
+		CloseHandle(hFile);
+		return false;
+	}
 
+	if (ntHeaders.Signature != IMAGE_NT_SIGNATURE) {
+		CloseHandle(hFile);
+		return false;
+	}
+
+	CloseHandle(hFile);
+	return true;
 }
 
 
-IMAGE_DOS_HEADER InjectorAPI::DllValidator::GetDOSHeader(HANDLE hFile) {
+IMAGE_DOS_HEADER InjectorAPI::DllValidator::GetDOSHeader() {
+	HANDLE hFile = CreateFileA(dllPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, nullptr);
+
+	if (hFile == INVALID_HANDLE_VALUE) {
+		throw runtime_error("CreateFileA failed. Error: " + GetLastError());
+	}
+
 	IMAGE_DOS_HEADER dosHeader;
-	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), NULL, nullptr)) {
+	DWORD bytesRead;
+	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), &bytesRead, nullptr) || 
+		bytesRead != sizeof(dosHeader)) {
 		CloseHandle(hFile);
 		throw runtime_error("Failed to get DOS header.");
 	}
 	
 	return dosHeader;
+}
+
+bool InjectorAPI::DllValidator::isValidDOSHeader() {
+	HANDLE hFile = CreateFileA(dllPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, nullptr);
+
+	if (hFile == INVALID_HANDLE_VALUE) {
+		throw runtime_error("CreateFileA failed. Error: " + GetLastError());
+	}
+
+	IMAGE_DOS_HEADER dosHeader;
+	DWORD bytesRead;
+	if (!ReadFile(hFile, &dosHeader, sizeof(dosHeader), &bytesRead, nullptr) ||
+		bytesRead != sizeof(dosHeader)) {
+		CloseHandle(hFile);
+		return false;
+	}
+
+	return true;
 }
