@@ -1,5 +1,5 @@
 # DLL Injector
-## Actual version: v0.2.5 (28.04.2025)
+## Actual version: v0.2.6 (28.04.2025)
 
 An application with its own simple API for implementing injectors for DLLs.
 
@@ -16,3 +16,7 @@ Written in `C++`.
 - [ ] Functions for signing dll.
 - [ ] Injection via NtCreateThreadEx.
 - [ ] Injection via Manual Mapping.
+
+## Examples
+You can test some of the features using the built-in examples. 
+For now, there is only one example file: `example.cpp`. This is the file used in the current build.
