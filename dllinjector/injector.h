@@ -10,6 +10,8 @@
 #include <winternl.h>
 #include <iterator>
 #include <algorithm>
+#include <wincrypt.h>
+#include <SoftPub.h>
 
 using namespace std;
 
@@ -55,6 +57,7 @@ namespace InjectorAPI {
 		bool isValidDOSHeader();
 
 		IMAGE_DOS_HEADER GetDOSHeader();
+
 
 	private:
 		string dllPath;
