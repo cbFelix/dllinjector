@@ -5,6 +5,13 @@ An application with its own simple API for implementing injectors for DLLs.
 
 Written in `C++`.
 
+## Antiviruses
+**Important:** Antiviruses may mistakenly mark the injector as malicious. This happens due to the methods of working with process memory. 
+### To use:
+- Add the file to the antivirus exceptions.
+- Disable the antivirus for the duration of testing (only in an isolated environment!).
+- If you are still not satisfied with something, you can build the injector yourself from the sources. Otherwise, just do not use this injector.
+---
 ### Current features:
 - A ready-made simple dll injector.
 - A simple DLL file validator.
